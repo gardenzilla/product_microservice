@@ -1,2 +1,2 @@
-# product_microservice
-Product microservice
+# Product microservice
+Demo microservice for gardenzilla
