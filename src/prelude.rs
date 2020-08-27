@@ -53,8 +53,17 @@ impl From<ServiceError> for ::tonic::Status {
 
 impl From<::storaget::PackError> for ServiceError {
     fn from(error: ::storaget::PackError) -> Self {
-        ServiceError::internal_error(&error.to_string())
+        match error {
+            ::storaget::PackError::ObjectNotFound => ServiceError::not_found(&error.to_string()),
+            _ => ServiceError::internal_error(&error.to_string()),
+        }
     }
 }
 
 pub type ServiceResult<T> = Result<T, ServiceError>;
+
+impl From<std::env::VarError> for ServiceError {
+    fn from(error: std::env::VarError) -> Self {
+        ServiceError::internal_error(&format!("ENV KEY NOT FOUND. {}", error))
+    }
+}
