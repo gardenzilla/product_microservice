@@ -15,8 +15,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Gardenzilla.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::password::*;
-use crate::prelude::ServiceError::*;
 use crate::prelude::*;
 use chrono::prelude::*;
 use protos::product::*;
@@ -40,13 +38,19 @@ impl From<UserId> for String {
     }
 }
 
+impl From<&UserId> for String {
+    fn from(u: &UserId) -> Self {
+        u.0.to_owned()
+    }
+}
+
 impl From<String> for UserId {
     fn from(s: String) -> Self {
         UserId(s.trim().into())
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum Unit {
     Piece,
     Millimeter,
@@ -72,12 +76,18 @@ impl Into<String> for Unit {
 }
 
 impl Unit {
-    pub fn from_str(from: &str) -> ServiceResult<Unit> {
+    pub fn try_from_str(from: &str) -> ServiceResult<Unit> {
+        let from = from.trim();
         let res = match from {
             "piece" => Unit::Piece,
-            "millimeter" => Unit::Milliliter,
+            "db" => Unit::Piece,
+            "millimeter" => Unit::Millimeter,
+            "mm" => Unit::Millimeter,
             "gram" => Unit::Gram,
+            "gr" => Unit::Gram,
+            "g" => Unit::Gram,
             "milliliter" => Unit::Milliliter,
+            "ml" => Unit::Milliliter,
             _ => {
                 return Err(ServiceError::bad_request(&format!(
                     "Wrong unit format: {}",
@@ -126,7 +136,7 @@ impl Into<String> for Quantity {
 }
 
 impl Quantity {
-    fn try_from_str(s: &str) -> ServiceResult<Quantity> {
+    pub fn try_from_str(s: &str) -> ServiceResult<Quantity> {
         let s = s.trim();
 
         let u32parser = |input: &str| -> ServiceResult<u32> {
@@ -191,11 +201,11 @@ impl From<Product> for ProductObj {
 impl From<&Product> for ProductObj {
     fn from(product: &Product) -> Self {
         Self {
-            sku: product.sku.into(),
-            name: product.name.into(),
-            quantity: product.quantity.into(),
-            unit: product.unit.into(),
-            created_by: product.created_by.into(),
+            sku: product.sku.to_owned(),
+            name: product.name.to_owned(),
+            quantity: product.quantity.to_string(),
+            unit: product.unit.to_string(),
+            created_by: (&product.created_by).into(),
             created_at: Some(protos::prelude::DateTime {
                 rfc_3399: product.created_at.to_rfc3339(),
             }),
@@ -247,17 +257,21 @@ impl Product {
     }
     pub fn set_name(&mut self, name: String) -> &Self {
         self.name = name;
-        &self
+        self
     }
     pub fn get_quantity(&self) -> &Quantity {
         &self.quantity
     }
     pub fn set_quantity(&mut self, quantity: Quantity) -> &Self {
         self.quantity = quantity;
-        &self
+        self
     }
     pub fn get_unit(&self) -> &Unit {
         &self.unit
+    }
+    pub fn set_unit(&mut self, unit: Unit) -> &Self {
+        self.unit = unit;
+        self
     }
     pub fn get_date_created(&self) -> DateTime<Utc> {
         self.created_at
@@ -296,5 +310,24 @@ mod tests {
         assert_eq!(Quantity::try_from_str("1x3x5").is_err(), true);
         assert_eq!(Quantity::try_from_str("1x").is_err(), true);
         assert_eq!(Quantity::try_from_str("1x3e").is_err(), true);
+    }
+
+    #[test]
+    fn test_unit_convert() {
+        assert_eq!(Unit::try_from_str("mm").unwrap(), Unit::Millimeter);
+        assert_eq!(Unit::try_from_str("g").unwrap(), Unit::Gram);
+        assert_eq!(Unit::try_from_str("ml").unwrap(), Unit::Milliliter);
+        assert_eq!(Unit::try_from_str("piece").unwrap(), Unit::Piece);
+        assert_eq!(Unit::try_from_str("db").unwrap(), Unit::Piece);
+        assert_eq!(Unit::try_from_str("piecee").is_ok(), false);
+        assert_eq!(Unit::try_from_str("kg").is_ok(), false);
+        assert_eq!(Unit::try_from_str("grr").is_ok(), false);
+        assert_eq!(Unit::try_from_str("g_").is_ok(), false);
+        assert_eq!(Unit::try_from_str("m").is_ok(), false);
+        assert_eq!(Unit::try_from_str("mm ").is_ok(), true);
+        assert_eq!(Unit::try_from_str("g ").is_ok(), true);
+        assert_eq!(Unit::try_from_str(" g ").is_ok(), true);
+        assert_eq!(Unit::try_from_str(" db ").is_ok(), true);
+        assert_eq!(Unit::try_from_str("     piece ").is_ok(), true);
     }
 }
