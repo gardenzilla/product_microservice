@@ -3,7 +3,7 @@ use protos::product::product_server::*;
 use protos::product::*;
 use std::path::PathBuf;
 use storaget::*;
-use tokio::sync::Mutex;
+use tokio::sync::{oneshot, Mutex};
 use tonic::{transport::Server, Request, Response, Status};
 
 pub mod convert;
@@ -128,11 +128,23 @@ async fn main() -> prelude::ServiceResult<()> {
 
     let addr = "[::1]:50054".parse().unwrap();
 
-    Server::builder()
-        .add_service(ProductServer::new(product_service))
-        .serve(addr)
-        .await
-        .expect("Error while staring server"); // Todo implement ? from<?>
+    // Create shutdown channel
+    let (tx, rx) = oneshot::channel();
+
+    // Spawn the server into a runtime
+    tokio::task::spawn(async move {
+        Server::builder()
+            .add_service(ProductServer::new(product_service))
+            .serve_with_shutdown(addr, async { rx.await.unwrap() })
+            .await
+    });
+
+    tokio::signal::ctrl_c().await.unwrap();
+
+    println!("SIGINT");
+
+    // Send shutdown signal after SIGINT received
+    let _ = tx.send(());
 
     Ok(())
 }
