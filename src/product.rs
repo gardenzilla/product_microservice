@@ -179,6 +179,7 @@ pub struct Product {
   name: String,
   quantity: Quantity, // e.g.: Simple(u32) => 3 ml, or Complex(u32, u32) => 5x3 ml
   unit: Unit,         // e.g.: ml
+  pest_category: Option<u32>,
   created_by: UserId,
   created_at: DateTime<Utc>,
 }
