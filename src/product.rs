@@ -20,36 +20,6 @@ use chrono::prelude::*;
 use gzlib::proto::product::*;
 use packman::*;
 use serde::{Deserialize, Serialize};
-use std::ops::Mul;
-
-pub type SKU = String;
-
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct UserId(String);
-
-impl PartialEq for UserId {
-  fn eq(&self, other: &Self) -> bool {
-    self.0 == other.0
-  }
-}
-
-impl From<UserId> for String {
-  fn from(u: UserId) -> Self {
-    u.0
-  }
-}
-
-impl From<&UserId> for String {
-  fn from(u: &UserId) -> Self {
-    u.0.to_owned()
-  }
-}
-
-impl From<String> for UserId {
-  fn from(s: String) -> Self {
-    UserId(s.trim().into())
-  }
-}
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum Unit {
@@ -175,208 +145,36 @@ impl Quantity {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum VAT {
-  AAM,
-  FAD,
-  TAM,
-  _5,
-  _18,
-  _27,
-}
-
-impl Default for VAT {
-  fn default() -> Self {
-    VAT::_27
-  }
-}
-
-impl VAT {
-  pub fn from_str(str: &str) -> Result<VAT, String> {
-    match str {
-      "AAM" => Ok(VAT::AAM),
-      "aam" => Ok(VAT::AAM),
-      "FAD" => Ok(VAT::FAD),
-      "fad" => Ok(VAT::FAD),
-      "TAM" => Ok(VAT::TAM),
-      "tam" => Ok(VAT::TAM),
-      "5" => Ok(VAT::_5),
-      "18" => Ok(VAT::_18),
-      "27" => Ok(VAT::_27),
-      _ => Err("Nem megfelelő Áfa formátum! 5, 18, 27, AAM, TAM, FAD".into()),
-    }
-  }
-}
-
-impl Mul<VAT> for u32 {
-  type Output = u32;
-
-  fn mul(self, rhs: VAT) -> Self::Output {
-    let res = match rhs {
-      VAT::AAM => self as f32 * 1.0,
-      VAT::FAD => self as f32 * 1.0,
-      VAT::TAM => self as f32 * 1.0,
-      VAT::_5 => self as f32 * 1.05,
-      VAT::_18 => self as f32 * 1.18,
-      VAT::_27 => self as f32 * 1.27,
-    };
-    res.round() as u32
-  }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-struct Reservation {
-  cart_id: u32,
-  amount: f32,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Product {
-  sku: u32,
+  product_id: u32,
   name: String,
   description: String,
-  latest_wholesale_price: f32,
-  price_retail_net: u32,
-  vat: VAT,
-  price_retail_gross: u32,
-  quantity: Quantity, // e.g.: Simple(u32) => 3 ml, or Complex(u32, u32) => 5x3 ml
-  unit: Unit,         // e.g.: ml
-  stock: f32,
-  reservation: Vec<Reservation>,
-  can_divide: bool,
-  can_divideh: bool,
-  created_by: UserId,
+  unit: Unit, // e.g.: ml
+  skus: Vec<u32>,
+  created_by: u32,
   created_at: DateTime<Utc>,
 }
 
-impl From<Product> for ProductObj {
-  fn from(product: Product) -> Self {
-    Self {
-      sku: format!("{:x}", product.sku),
-      name: product.name,
-      quantity: product.quantity.into(),
-      unit: product.unit.into(),
-      created_by: product.created_by.into(),
-      created_at: product.created_at.to_rfc3339(),
-    }
-  }
-}
-
-impl From<&Product> for ProductObj {
-  fn from(product: &Product) -> Self {
-    Self {
-      sku: format!("{:x}", product.sku),
-      name: product.name.to_owned(),
-      quantity: product.quantity.to_string(),
-      unit: product.unit.to_string(),
-      created_by: (&product.created_by).into(),
-      created_at: product.created_at.to_rfc3339(),
-    }
-  }
-}
-
-impl Default for Product {
-  fn default() -> Self {
-    Self {
-      sku: 0,
-      name: String::default(),
-      quantity: Quantity::Simple(0),
-      unit: Unit::Milliliter,
-      description: String::default(),
-      latest_wholesale_price: 0.0,
-      price_retail_net: 0,
-      vat: VAT::_27,
-      price_retail_gross: 0,
-      stock: 0.0,
-      reservation: Vec::new(),
-      can_divide: false,
-      can_divideh: false,
-      created_by: UserId::default(),
-      created_at: Utc::now(),
-    }
-  }
+pub struct Sku {
+  sku: u32,
+  product_id: u32,
+  sub_name: String,
+  display_name: String,
+  quantity: Quantity, // e.g.: Simple(u32) => 3 ml, or Complex(u32, u32) => 5x3 ml
+  can_divide: bool,
+  created_by: u32,
+  created_at: DateTime<Utc>,
 }
 
 impl TryFrom for Product {
   type TryFrom = Product;
 }
 
-impl Product {
-  pub fn new(
-    sku: u32,
-    name: String,
-    description: String,
-    quantity: Quantity,
-    unit: Unit,
-    price_retail_net: u32,
-    vat: VAT,
-    can_divide: bool,
-    can_divideh: bool,
-    created_by: String,
-  ) -> ServiceResult<Self> {
-    Ok(Self {
-      sku,
-      name,
-      description,
-      quantity,
-      unit,
-      price_retail_net,
-      latest_wholesale_price: 0.0,
-      vat,
-      price_retail_gross: price_retail_net * vat,
-      stock: 0.0,
-      reservation: Vec::new(),
-      can_divide,
-      can_divideh,
-      created_at: Utc::now(),
-      created_by: created_by.into(),
-    })
-  }
-}
-
-impl Product {
-  pub fn get_sku(&self) -> &u32 {
-    &self.sku
-  }
-  pub fn get_name(&self) -> &str {
-    &self.name
-  }
-  pub fn set_name(&mut self, name: String) -> &Self {
-    self.name = name;
-    self
-  }
-  pub fn get_quantity(&self) -> &Quantity {
-    &self.quantity
-  }
-  pub fn set_quantity(&mut self, quantity: Quantity) -> &Self {
-    self.quantity = quantity;
-    self
-  }
-  pub fn get_unit(&self) -> &Unit {
-    &self.unit
-  }
-  pub fn set_unit(&mut self, unit: Unit) -> &Self {
-    self.unit = unit;
-    self
-  }
-  pub fn get_date_created(&self) -> DateTime<Utc> {
-    self.created_at
-  }
-  pub fn get_created_by(&self) -> &UserId {
-    &self.created_by
-  }
-}
-
 impl VecPackMember for Product {
   type Out = u32;
-  fn get_id(&self) -> &u32 {
+  fn get_id(&self) -> Self::Out {
     &self.sku
   }
-  // fn try_from(from: &str) -> StorageResult<Self::ResultType> {
-  //     match deserialize_object(from) {
-  //         Ok(res) => Ok(res),
-  //         Err(_) => Err(ServiceError::DeserializeServiceError("user has wrong format".to_string())),
-  //     }
-  // }
 }
 
 #[cfg(test)]
