@@ -1,0 +1,29 @@
+Product
+  SKU
+    UPL
+
+Product
+  - Collection of variate range information
+    such as name, brand, manufacturer
+
+SKU
+  - Variety attributes
+
+struct Product {
+  id: u32,
+  name: String,
+  brand: Brand,
+  manufacturer: ManufacturerId,
+  related_skus: Vec<SkuId>,
+}
+
+struct Sku {
+  id: u32
+  product_id: u32,
+  product_name: String, // Name product
+  subname: String,      // Name SUB
+  display_name: String, // Name display
+  quantity: Quantity,
+  unit: Unit,
+  can_divide: bool,
+}
