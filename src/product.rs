@@ -22,13 +22,20 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Product {
-  product_id: u32,
-  name: String,
-  description: String,
-  unit: Unit, // e.g.: ml
-  skus: Vec<u32>,
-  created_by: u32,
-  created_at: DateTime<Utc>,
+  /// Product ID
+  pub product_id: u32,
+  /// Product name
+  pub name: String,
+  /// Product description
+  pub description: String,
+  /// Product unit
+  pub unit: Unit, // e.g.: ml
+  /// Related SKUs
+  pub skus: Vec<u32>,
+  /// Created by UID
+  pub created_by: u32,
+  /// Created at
+  pub created_at: DateTime<Utc>,
 }
 
 impl Product {
@@ -92,28 +99,28 @@ impl VecPackMember for Product {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Sku {
   // SKU ID
-  sku: u32,
+  pub sku: u32,
   // Related product_id
-  product_id: u32,
+  pub product_id: u32,
   // Related product name
-  parent_name: String,
+  pub parent_name: String,
   // SKU sub name
-  sub_name: String,
+  pub sub_name: String,
   // Product name + sub name + packaging
-  display_name: String,
+  pub display_name: String,
   // Quantity + unit as fancy display
-  display_packaging: String,
+  pub display_packaging: String,
   // Related product unit
-  unit: Unit,
+  pub unit: Unit,
   // Sku quantity
-  quantity: Quantity,
+  pub quantity: Quantity,
   // UPLs can divide?
   // Only if Quantity::Simple(_)
-  can_divide: bool,
+  pub can_divide: bool,
   // Created by UID
-  created_by: u32,
+  pub created_by: u32,
   // Created at
-  created_at: DateTime<Utc>,
+  pub created_at: DateTime<Utc>,
 }
 
 impl Sku {
