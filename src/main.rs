@@ -1,130 +1,63 @@
-use packman::*;
-use prelude::*;
 use gzlib::proto::product::product_server::*;
 use gzlib::proto::product::*;
+use packman::*;
+use prelude::*;
 use std::path::PathBuf;
 use tokio::sync::{oneshot, Mutex};
 use tonic::{transport::Server, Request, Response, Status};
 
-pub mod convert;
-pub mod id;
-pub mod prelude;
-pub mod product;
-pub mod sku;
+mod convert;
+mod id;
+mod prelude;
+mod product;
+mod quantity;
 
-pub struct ProductService {
+struct ProductService {
   products: Mutex<VecPack<product::Product>>,
+  skus: Mutex<VecPack<product::Sku>>,
 }
 
 impl ProductService {
-  fn new(products: Mutex<VecPack<product::Product>>) -> Self {
-    Self { products }
-  }
-  async fn create_new_product(&self, p: CreateNewRequest) -> ServiceResult<ProductObj> {
-    let new_product = product::Product::new(
-      p.name,
-      product::Quantity::try_from_str(&p.quantity)?,
-      product::Unit::try_from_str(&p.unit)?,
-      p.created_by,
-    )?;
-    self.products.lock().await.insert(new_product.clone())?;
-    Ok(new_product.into())
-  }
-}
-
-#[tonic::async_trait]
-impl Product for ProductService {
-  async fn create_new(
-    &self,
-    request: Request<CreateNewRequest>,
-  ) -> Result<Response<CreateNewResponse>, Status> {
-    let res = self.create_new_product(request.into_inner()).await?;
-    Ok(Response::new(CreateNewResponse { product: Some(res) }))
-  }
-
-  async fn get_all(&self, _request: Request<()>) -> Result<Response<GetAllResponse>, Status> {
-    let products: Vec<ProductObj> = self
-      .products
-      .lock()
-      .await
-      .into_iter()
-      .map(|p: &mut Pack<product::Product>| p.unpack().into())
-      .collect::<Vec<ProductObj>>();
-    Ok(Response::new(GetAllResponse { products: products }))
-  }
-
-  async fn get_by_id(
-    &self,
-    request: Request<GetByIdRequest>,
-  ) -> Result<Response<GetByIdResponse>, Status> {
-    let product: ProductObj = self
-      .products
-      .lock()
-      .await
-      .find_id(&request.into_inner().sku)
-      .map_err(|_| Status::not_found("Product not found"))?
-      .unpack()
-      .into();
-    let response = GetByIdResponse {
-      product: Some(product),
-    };
-    return Ok(Response::new(response));
-  }
-
-  async fn update_by_id(
-    &self,
-    request: Request<UpdateByIdRequest>,
-  ) -> Result<Response<UpdateByIdResponse>, Status> {
-    let _product: ProductUpdateObj = match request.into_inner().product {
-      Some(u) => u,
-      None => return Err(Status::internal("Request has an empty user object")),
-    };
-    let mut lock = self.products.lock().await;
-    let product = match lock.find_id_mut(&_product.sku) {
-      Ok(u) => u,
-      Err(err) => return Err(Status::not_found(format!("{}", err))),
-    };
-
-    {
-      let mut product_mut = product.as_mut();
-      let mut _product_mut = product_mut.unpack();
-      _product_mut.set_name(_product.name.to_string());
-      _product_mut.set_quantity(product::Quantity::try_from_str(&_product.quantity)?);
-      _product_mut.set_unit(product::Unit::try_from_str(&_product.unit)?);
+  fn init(product_db: VecPack<product::Product>, sku_db: VecPack<product::Sku>) -> Self {
+    Self {
+      products: Mutex::new(product_db),
+      skus: Mutex::new(sku_db),
     }
-
-    let response = UpdateByIdResponse {
-      product: Some(product.unpack().into()),
-    };
-    return Ok(Response::new(response));
   }
-
-  async fn is_sku(
-    &self,
-    request: Request<IsSkuRequest>,
-  ) -> Result<Response<IsSkuResponse>, Status> {
-    let res = match self
-      .products
-      .lock()
-      .await
-      .find_id(&request.into_inner().sku)
-    {
-      Ok(_) => true,
-      Err(_) => false,
-    };
-    let response = IsSkuResponse { sku_exist: res };
-    return Ok(Response::new(response));
+  /// Get next product id to use
+  async fn next_product_id(&self) -> u32 {
+    let mut latest_id: u32 = 0;
+    self.products.lock().await.iter().for_each(|product| {
+      let id: u32 = *product.unpack().get_id();
+      if id > latest_id {
+        latest_id = id;
+      }
+    });
+    latest_id + 1
+  }
+  /// Get next SKU id to use
+  async fn next_sku(&self) -> u32 {
+    let mut latest_id: u32 = 0;
+    self.skus.lock().await.iter().for_each(|sku| {
+      let id: u32 = *sku.unpack().get_id();
+      if id > latest_id {
+        latest_id = id;
+      }
+    });
+    latest_id + 1
   }
 }
 
 #[tokio::main]
 async fn main() -> prelude::ServiceResult<()> {
-  let products: Mutex<VecPack<product::Product>> = Mutex::new(
+  let product_db: VecPack<product::Product> =
     VecPack::try_load_or_init(PathBuf::from("data/products"))
-      .expect("Error while loading products storage"),
-  );
+      .expect("Error while loading product storage");
 
-  let product_service = ProductService::new(products);
+  let sku_db: VecPack<product::Sku> =
+    VecPack::try_load_or_init(PathBuf::from("data/skus")).expect("Error while loading sku storage");
+
+  let product_service = ProductService::init(product_db, sku_db);
 
   let addr = "[::1]:50054".parse().unwrap();
 
