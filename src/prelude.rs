@@ -1,3 +1,5 @@
+use gzlib::proto::product::{ProductObj, SkuObj};
+
 pub enum ServiceError {
   InternalError(String),
   NotFound(String),
@@ -65,5 +67,36 @@ pub type ServiceResult<T> = Result<T, ServiceError>;
 impl From<std::env::VarError> for ServiceError {
   fn from(error: std::env::VarError) -> Self {
     ServiceError::internal_error(&format!("ENV KEY NOT FOUND. {}", error))
+  }
+}
+
+impl From<crate::product::Product> for ProductObj {
+  fn from(p: crate::product::Product) -> Self {
+    Self {
+      product_id: p.product_id,
+      name: p.name,
+      description: p.description,
+      unit: p.unit.to_string(),
+      skus: p.skus.clone(),
+      created_by: p.created_by,
+      created_at: p.created_at.to_rfc3339(),
+    }
+  }
+}
+
+impl From<crate::product::Sku> for SkuObj {
+  fn from(s: crate::product::Sku) -> Self {
+    Self {
+      sku: s.sku,
+      product_id: s.product_id,
+      subname: s.sub_name,
+      display_name: s.display_name,
+      display_packaging: s.display_packaging,
+      quantity: s.quantity.to_string(),
+      unit: s.unit.to_string(),
+      can_divide: s.can_divide,
+      created_by: s.created_by,
+      created_at: s.created_at.to_rfc3339(),
+    }
   }
 }

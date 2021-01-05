@@ -145,7 +145,7 @@ impl Quantity {
   }
 }
 
-enum QuantityDisplay<'a> {
+pub enum QuantityDisplay<'a> {
   Transformed(Quantity),
   Original(&'a Quantity),
 }

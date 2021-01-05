@@ -130,7 +130,6 @@ impl Sku {
     parent: &Product,
     sub_name: String,
     quantity: Quantity,
-    can_divide: bool,
     created_by: u32,
   ) -> Self {
     Self {
@@ -142,7 +141,7 @@ impl Sku {
       display_packaging: fancy_display(&quantity, &parent.unit),
       quantity,
       unit: parent.unit.clone(),
-      can_divide,
+      can_divide: false,
       created_by,
       created_at: Utc::now(),
     }
@@ -155,12 +154,30 @@ impl Sku {
     self
   }
   /// Update SKU data
-  pub fn update(&mut self, sub_name: String, quantity: Quantity, can_divide: bool) -> &Self {
+  pub fn update(&mut self, sub_name: String, quantity: Quantity) -> &Self {
     self.sub_name = sub_name;
     self.quantity = quantity;
-    self.can_divide = can_divide;
     self.reset();
     self
+  }
+  /// Try to set divide
+  pub fn set_divide(&mut self, can_divide: bool) -> Result<&Self, String> {
+    // If can_divide false
+    // Then we set it without conditions
+    if !can_divide {
+      self.can_divide = false;
+      return Ok(self);
+    }
+    // If can_divide true,
+    // we check if quantity is Simple, then set it to true
+    // otherwise return error
+    match self.quantity {
+      Quantity::Simple(_) => {
+        self.can_divide = true;
+        Ok(self)
+      }
+      Quantity::Complex(_, _) => Err("Csak egyszerű mennyiség lehet osztható!".to_string()),
+    }
   }
   /// Central reset function
   /// This calls all the needed reset sub methods
