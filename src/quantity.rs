@@ -1,7 +1,6 @@
 use std::fmt::Display;
 
 use crate::prelude::*;
-use gzlib::proto::product::*;
 use serde::{Deserialize, Serialize};
 use thousands::Separable;
 

@@ -2,14 +2,12 @@ use gzlib::proto::product::product_server::*;
 use gzlib::proto::product::*;
 use packman::*;
 use prelude::*;
-use product::Sku;
 use quantity::{Quantity, Unit};
 use std::{env, path::PathBuf};
 use tokio::sync::{oneshot, Mutex};
 use tonic::{transport::Server, Request, Response, Status};
 
 mod convert;
-mod id;
 mod prelude;
 mod product;
 mod quantity;
@@ -268,7 +266,7 @@ impl gzlib::proto::product::product_server::Product for ProductService {
     Ok(Response::new(res))
   }
 
-  async fn get_product_all(&self, request: Request<()>) -> Result<Response<ProductIds>, Status> {
+  async fn get_product_all(&self, _: Request<()>) -> Result<Response<ProductIds>, Status> {
     let res = self.get_product_all().await?;
     Ok(Response::new(ProductIds { product_ids: res }))
   }
@@ -325,7 +323,7 @@ impl gzlib::proto::product::product_server::Product for ProductService {
     Ok(Response::new(res))
   }
 
-  async fn get_sku_all(&self, request: Request<()>) -> Result<Response<SkuIds>, Status> {
+  async fn get_sku_all(&self, _: Request<()>) -> Result<Response<SkuIds>, Status> {
     let res = self.get_sku_all().await?;
     Ok(Response::new(SkuIds { sku_ids: res }))
   }
