@@ -32,6 +32,7 @@ pub struct Product {
 }
 
 impl Product {
+  /// Create new product object
   pub fn new(
     product_id: u32,
     name: String,
@@ -48,6 +49,18 @@ impl Product {
       created_by,
       created_at: Utc::now(),
     }
+  }
+  /// Update product data
+  pub fn update(&mut self, name: String, description: String, unit: Unit) -> &Self {
+    self.name = name;
+    self.description = description;
+    self.unit = unit;
+    self
+  }
+  // Add related SKU
+  pub fn add_sku(&mut self, sku: u32) -> &Self {
+    self.skus.push(sku);
+    self
   }
 }
 

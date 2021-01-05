@@ -18,6 +18,7 @@ struct ProductService {
 }
 
 impl ProductService {
+  /// Init new product service with the required DBs
   fn init(product_db: VecPack<product::Product>, sku_db: VecPack<product::Sku>) -> Self {
     Self {
       products: Mutex::new(product_db),
@@ -50,34 +51,34 @@ impl ProductService {
 
 #[tokio::main]
 async fn main() -> prelude::ServiceResult<()> {
-  let product_db: VecPack<product::Product> =
-    VecPack::try_load_or_init(PathBuf::from("data/products"))
-      .expect("Error while loading product storage");
+  // let product_db: VecPack<product::Product> =
+  //   VecPack::try_load_or_init(PathBuf::from("data/products"))
+  //     .expect("Error while loading product storage");
 
-  let sku_db: VecPack<product::Sku> =
-    VecPack::try_load_or_init(PathBuf::from("data/skus")).expect("Error while loading sku storage");
+  // let sku_db: VecPack<product::Sku> =
+  //   VecPack::try_load_or_init(PathBuf::from("data/skus")).expect("Error while loading sku storage");
 
-  let product_service = ProductService::init(product_db, sku_db);
+  // let product_service = ProductService::init(product_db, sku_db);
 
-  let addr = "[::1]:50054".parse().unwrap();
+  // let addr = "[::1]:50054".parse().unwrap();
 
-  // Create shutdown channel
-  let (tx, rx) = oneshot::channel();
+  // // Create shutdown channel
+  // let (tx, rx) = oneshot::channel();
 
-  // Spawn the server into a runtime
-  tokio::task::spawn(async move {
-    Server::builder()
-      .add_service(ProductServer::new(product_service))
-      .serve_with_shutdown(addr, async { rx.await.unwrap() })
-      .await
-  });
+  // // Spawn the server into a runtime
+  // tokio::task::spawn(async move {
+  //   Server::builder()
+  //     .add_service(ProductServer::new(product_service))
+  //     .serve_with_shutdown(addr, async { rx.await.unwrap() })
+  //     .await
+  // });
 
-  tokio::signal::ctrl_c().await.unwrap();
+  // tokio::signal::ctrl_c().await.unwrap();
 
-  println!("SIGINT");
+  // println!("SIGINT");
 
-  // Send shutdown signal after SIGINT received
-  let _ = tx.send(());
+  // // Send shutdown signal after SIGINT received
+  // let _ = tx.send(());
 
   Ok(())
 }

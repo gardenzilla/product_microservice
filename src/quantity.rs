@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::prelude::*;
 use chrono::prelude::*;
 use gzlib::proto::product::*;
@@ -50,6 +52,23 @@ impl Unit {
       }
     };
     Ok(res)
+  }
+  pub fn to_display_unit(&self, quantity_display: &QuantityDisplay) -> String {
+    match quantity_display {
+      QuantityDisplay::Transformed(_) => {
+        match self {
+          // Piece remains piece
+          Unit::Piece => self.to_string(),
+          // MM to Meter
+          Unit::Millimeter => "m".to_string(),
+          // Gram to Kg
+          Unit::Gram => "kg".to_string(),
+          // Ml to Liter
+          Unit::Milliliter => "l".to_string(),
+        }
+      }
+      QuantityDisplay::Original(_) => format!("{}", &self),
+    }
   }
 }
 
@@ -127,6 +146,50 @@ impl Quantity {
   }
 }
 
+enum QuantityDisplay<'a> {
+  Transformed(Quantity),
+  Original(&'a Quantity),
+}
+
+impl<'a> Display for QuantityDisplay<'a> {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      QuantityDisplay::Transformed(q) => write!(f, "{}", q),
+      QuantityDisplay::Original(q) => write!(f, "{}", q),
+    }
+  }
+}
+
+/// Convert a quantity and a unit to a nice looking
+/// easier to look format
+pub fn fancy_display(quantity: &Quantity, unit: &Unit) -> String {
+  // Helper to decide wether transform quantity or not
+  let can_transform = |u: u32| (u >= 1000) && (u % 1000 == 0);
+  // Transform quantity
+  let transformed = |q: &Quantity| match q {
+    Quantity::Simple(_q) => match can_transform(*_q) {
+      true => QuantityDisplay::Transformed(Quantity::Simple(_q / 1000)),
+      false => QuantityDisplay::Original(quantity),
+    },
+    Quantity::Complex(_m, _q) => match can_transform(*_q) {
+      true => QuantityDisplay::Transformed(Quantity::Complex(*_m, _q / 1000)),
+      false => QuantityDisplay::Original(quantity),
+    },
+  };
+  // Convert quantity to QuantityDisplay
+  let quantity_transformed = transformed(quantity);
+  // Create display string
+  match unit {
+    // When we have a Piece, we do not transform anything
+    Unit::Piece => format!("{} {}", quantity, unit),
+    _ => format!(
+      "{} {}",
+      &quantity_transformed,
+      unit.to_display_unit(&quantity_transformed)
+    ),
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -163,5 +226,149 @@ mod tests {
     assert_eq!(Unit::try_from_str(" g ").is_ok(), true);
     assert_eq!(Unit::try_from_str(" db ").is_ok(), true);
     assert_eq!(Unit::try_from_str("     piece ").is_ok(), true);
+  }
+
+  #[test]
+  fn test_fancy_display() {
+    // Test piece transform
+    assert_eq!(fancy_display(&Quantity::Simple(1), &Unit::Piece), "1 db");
+    assert_eq!(
+      fancy_display(&Quantity::Complex(3, 1), &Unit::Piece),
+      "3x1 db"
+    );
+    assert_eq!(fancy_display(&Quantity::Simple(10), &Unit::Piece), "10 db");
+    assert_eq!(
+      fancy_display(&Quantity::Complex(3, 10), &Unit::Piece),
+      "3x10 db"
+    );
+    assert_eq!(
+      fancy_display(&Quantity::Simple(500), &Unit::Piece),
+      "500 db"
+    );
+    assert_eq!(
+      fancy_display(&Quantity::Simple(1000), &Unit::Piece),
+      "1000 db"
+    );
+    assert_eq!(
+      fancy_display(&Quantity::Simple(11000), &Unit::Piece),
+      "11000 db"
+    );
+    // Test gram transform
+    assert_eq!(fancy_display(&Quantity::Simple(500), &Unit::Gram), "500 g");
+    assert_eq!(
+      fancy_display(&Quantity::Complex(3, 500), &Unit::Gram),
+      "3x500 g"
+    );
+    assert_eq!(
+      fancy_display(&Quantity::Simple(1100), &Unit::Gram),
+      "1100 g"
+    );
+    assert_eq!(
+      fancy_display(&Quantity::Complex(3, 1100), &Unit::Gram),
+      "3x1100 g"
+    );
+    assert_eq!(fancy_display(&Quantity::Simple(1000), &Unit::Gram), "1 kg");
+    assert_eq!(
+      fancy_display(&Quantity::Complex(3, 1000), &Unit::Gram),
+      "3x1 kg"
+    );
+    assert_eq!(
+      fancy_display(&Quantity::Simple(16000), &Unit::Gram),
+      "16 kg"
+    );
+    assert_eq!(
+      fancy_display(&Quantity::Complex(3, 16000), &Unit::Gram),
+      "3x16 kg"
+    );
+    assert_eq!(
+      fancy_display(&Quantity::Simple(16500), &Unit::Gram),
+      "16500 g"
+    );
+    // Test mm transform
+    assert_eq!(
+      fancy_display(&Quantity::Simple(500), &Unit::Millimeter),
+      "500 mm"
+    );
+    assert_eq!(
+      fancy_display(&Quantity::Complex(150, 500), &Unit::Millimeter),
+      "150x500 mm"
+    );
+    assert_eq!(
+      fancy_display(&Quantity::Simple(1), &Unit::Millimeter),
+      "1 mm"
+    );
+    assert_eq!(
+      fancy_display(&Quantity::Simple(1000), &Unit::Millimeter),
+      "1 m"
+    );
+    assert_eq!(
+      fancy_display(&Quantity::Complex(3, 1000), &Unit::Millimeter),
+      "3x1 m"
+    );
+    assert_eq!(
+      fancy_display(&Quantity::Simple(1500), &Unit::Millimeter),
+      "1500 mm"
+    );
+    assert_eq!(
+      fancy_display(&Quantity::Complex(3, 1500), &Unit::Millimeter),
+      "3x1500 mm"
+    );
+    assert_eq!(
+      fancy_display(&Quantity::Simple(3000), &Unit::Millimeter),
+      "3 m"
+    );
+    assert_eq!(
+      fancy_display(&Quantity::Complex(3, 3000), &Unit::Millimeter),
+      "3x3 m"
+    );
+    assert_eq!(
+      fancy_display(&Quantity::Simple(15000), &Unit::Millimeter),
+      "15 m"
+    );
+    assert_eq!(
+      fancy_display(&Quantity::Simple(15001), &Unit::Millimeter),
+      "15001 mm"
+    );
+    // Test ml transform
+    assert_eq!(
+      fancy_display(&Quantity::Simple(1), &Unit::Milliliter),
+      "1 ml"
+    );
+    assert_eq!(
+      fancy_display(&Quantity::Simple(100), &Unit::Milliliter),
+      "100 ml"
+    );
+    assert_eq!(
+      fancy_display(&Quantity::Complex(3, 100), &Unit::Milliliter),
+      "3x100 ml"
+    );
+    assert_eq!(
+      fancy_display(&Quantity::Simple(1000), &Unit::Milliliter),
+      "1 l"
+    );
+    assert_eq!(
+      fancy_display(&Quantity::Complex(3, 1000), &Unit::Milliliter),
+      "3x1 l"
+    );
+    assert_eq!(
+      fancy_display(&Quantity::Simple(2000), &Unit::Milliliter),
+      "2 l"
+    );
+    assert_eq!(
+      fancy_display(&Quantity::Simple(1400), &Unit::Milliliter),
+      "1400 ml"
+    );
+    assert_eq!(
+      fancy_display(&Quantity::Complex(9, 1400), &Unit::Milliliter),
+      "9x1400 ml"
+    );
+    assert_eq!(
+      fancy_display(&Quantity::Simple(13000), &Unit::Milliliter),
+      "13 l"
+    );
+    assert_eq!(
+      fancy_display(&Quantity::Complex(3, 13000), &Unit::Milliliter),
+      "3x13 l"
+    );
   }
 }
