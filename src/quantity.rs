@@ -5,6 +5,7 @@ use chrono::prelude::*;
 use gzlib::proto::product::*;
 use packman::*;
 use serde::{Deserialize, Serialize};
+use thousands::Separable;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum Unit {
@@ -96,7 +97,7 @@ impl PartialEq for Quantity {
 impl std::fmt::Display for Quantity {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match &self {
-      Quantity::Simple(quantity) => write!(f, "{}", quantity),
+      Quantity::Simple(quantity) => write!(f, "{}", quantity.separate_with_spaces()),
       Quantity::Complex(multiplier, quantity) => write!(f, "{}x{}", multiplier, quantity),
     }
   }
@@ -247,11 +248,11 @@ mod tests {
     );
     assert_eq!(
       fancy_display(&Quantity::Simple(1000), &Unit::Piece),
-      "1000 db"
+      "1 000 db"
     );
     assert_eq!(
       fancy_display(&Quantity::Simple(11000), &Unit::Piece),
-      "11000 db"
+      "11 000 db"
     );
     // Test gram transform
     assert_eq!(fancy_display(&Quantity::Simple(500), &Unit::Gram), "500 g");
@@ -261,7 +262,7 @@ mod tests {
     );
     assert_eq!(
       fancy_display(&Quantity::Simple(1100), &Unit::Gram),
-      "1100 g"
+      "1 100 g"
     );
     assert_eq!(
       fancy_display(&Quantity::Complex(3, 1100), &Unit::Gram),
@@ -282,7 +283,7 @@ mod tests {
     );
     assert_eq!(
       fancy_display(&Quantity::Simple(16500), &Unit::Gram),
-      "16500 g"
+      "16 500 g"
     );
     // Test mm transform
     assert_eq!(
@@ -307,7 +308,7 @@ mod tests {
     );
     assert_eq!(
       fancy_display(&Quantity::Simple(1500), &Unit::Millimeter),
-      "1500 mm"
+      "1 500 mm"
     );
     assert_eq!(
       fancy_display(&Quantity::Complex(3, 1500), &Unit::Millimeter),
@@ -327,7 +328,7 @@ mod tests {
     );
     assert_eq!(
       fancy_display(&Quantity::Simple(15001), &Unit::Millimeter),
-      "15001 mm"
+      "15 001 mm"
     );
     // Test ml transform
     assert_eq!(
@@ -356,7 +357,7 @@ mod tests {
     );
     assert_eq!(
       fancy_display(&Quantity::Simple(1400), &Unit::Milliliter),
-      "1400 ml"
+      "1 400 ml"
     );
     assert_eq!(
       fancy_display(&Quantity::Complex(9, 1400), &Unit::Milliliter),

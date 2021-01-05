@@ -91,15 +91,28 @@ impl VecPackMember for Product {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Sku {
+  // SKU ID
   sku: u32,
+  // Related product_id
   product_id: u32,
+  // Related product name
   parent_name: String,
+  // SKU sub name
   sub_name: String,
+  // Product name + sub name + packaging
   display_name: String,
+  // Quantity + unit as fancy display
+  display_packaging: String,
+  // Related product unit
   unit: Unit,
-  quantity: Quantity, // e.g.: Simple(u32) => 3 ml, or Complex(u32, u32) => 5x3 ml
+  // Sku quantity
+  quantity: Quantity,
+  // UPLs can divide?
+  // Only if Quantity::Simple(_)
   can_divide: bool,
+  // Created by UID
   created_by: u32,
+  // Created at
   created_at: DateTime<Utc>,
 }
 
@@ -119,6 +132,7 @@ impl Sku {
       parent_name: parent.name.clone(),
       sub_name,
       display_name: String::default(),
+      display_packaging: fancy_display(&quantity, &parent.unit),
       quantity,
       unit: parent.unit.clone(),
       can_divide,
@@ -130,7 +144,7 @@ impl Sku {
   pub fn update_parent(&mut self, parent: &Product) -> &Self {
     self.parent_name = parent.name.clone();
     self.unit = parent.unit.clone();
-    self.reset_display_name();
+    self.reset();
     self
   }
   /// Update SKU data
@@ -138,16 +152,28 @@ impl Sku {
     self.sub_name = sub_name;
     self.quantity = quantity;
     self.can_divide = can_divide;
-    self.reset_display_name();
+    self.reset();
     self
+  }
+  /// Central reset function
+  /// This calls all the needed reset sub methods
+  /// Call order important!
+  pub fn reset(&mut self) {
+    self.reset_display_packaging();
+    self.reset_display_name();
   }
   /// Reset display_name by a parent &Product data
   /// and self data
   pub fn reset_display_name(&mut self) {
     self.display_name = format!(
-      "{} {}, {} {}",
-      self.parent_name, self.sub_name, self.unit, self.quantity
+      "{} {}, {}",
+      self.parent_name, self.sub_name, self.display_packaging
     );
+  }
+  /// Reset display_packaging
+  /// based on the stored quantity and unit
+  pub fn reset_display_packaging(&mut self) {
+    self.display_packaging = fancy_display(&self.quantity, &self.unit);
   }
 }
 
@@ -159,6 +185,7 @@ impl Default for Sku {
       parent_name: String::default(),
       sub_name: String::default(),
       display_name: String::default(),
+      display_packaging: String::default(),
       quantity: Quantity::Simple(0),
       unit: Unit::Milliliter,
       can_divide: false,
