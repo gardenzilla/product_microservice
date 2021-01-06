@@ -2,7 +2,6 @@ use std::fmt::Display;
 
 use crate::prelude::*;
 use serde::{Deserialize, Serialize};
-use thousands::Separable;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum Unit {
@@ -94,7 +93,7 @@ impl PartialEq for Quantity {
 impl std::fmt::Display for Quantity {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match &self {
-      Quantity::Simple(quantity) => write!(f, "{}", quantity.separate_with_spaces()),
+      Quantity::Simple(quantity) => write!(f, "{}", quantity),
       Quantity::Complex(multiplier, quantity) => write!(f, "{}x{}", multiplier, quantity),
     }
   }

@@ -9,6 +9,7 @@ release:
 build:
 	cargo update
 	cargo build
+	cargo test
 
 dev:
 	# . ./ENV.sh; backper
