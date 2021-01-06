@@ -140,7 +140,7 @@ impl ProductService {
       .lock()
       .await
       .iter()
-      .filter(|p| p.unpack().name.contains(&r.query))
+      .filter(|p| p.unpack().name.to_lowercase().contains(&r.query))
       .map(|p| *p.unpack().get_id())
       .collect::<Vec<u32>>();
     // Return result product id vector
@@ -248,7 +248,7 @@ impl ProductService {
       .lock()
       .await
       .iter()
-      .filter(|s| s.unpack().display_name.contains(&r.query))
+      .filter(|s| s.unpack().display_name.to_lowercase().contains(&r.query))
       .map(|s| *s.unpack().get_id())
       .collect::<Vec<u32>>();
     // Return result SKU ids as vector
