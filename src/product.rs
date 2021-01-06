@@ -132,19 +132,21 @@ impl Sku {
     quantity: Quantity,
     created_by: u32,
   ) -> Self {
-    Self {
+    let mut res = Self {
       sku,
       product_id,
       parent_name: parent.name.clone(),
       sub_name,
       display_name: String::default(),
-      display_packaging: fancy_display(&quantity, &parent.unit),
+      display_packaging: String::default(),
       quantity,
       unit: parent.unit.clone(),
       can_divide: false,
       created_by,
       created_at: Utc::now(),
-    }
+    };
+    res.reset();
+    res
   }
   /// Update SKU data based on its related parent &Product
   pub fn update_parent(&mut self, parent: &Product) -> &Self {

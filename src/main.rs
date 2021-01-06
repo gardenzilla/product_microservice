@@ -172,6 +172,14 @@ impl ProductService {
     );
     // Insert new SKU into storage
     self.skus.lock().await.insert(new_sku.clone())?;
+    // Add SKU to its parent product
+    let _ = self
+      .products
+      .lock()
+      .await
+      .find_id_mut(&r.product_id)?
+      .unpack()
+      .add_sku(new_sku.sku);
     // Return new_sku as SkuObj
     Ok(new_sku.into())
   }
