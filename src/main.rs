@@ -178,6 +178,7 @@ impl ProductService {
       .lock()
       .await
       .find_id_mut(&r.product_id)?
+      .as_mut()
       .unpack()
       .add_sku(new_sku.sku);
     // Return new_sku as SkuObj
