@@ -19,6 +19,7 @@ use crate::quantity::*;
 use chrono::prelude::*;
 use packman::*;
 use serde::{Deserialize, Serialize};
+use sku_version_update::SkuOld;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Product {
@@ -178,7 +179,7 @@ impl Sku {
         self.can_divide = true;
         Ok(self)
       }
-      Quantity::Complex(_, _) => Err("Csak egyszerű mennyiség lehet osztható!".to_string()),
+      _ => Err("Csak egyszerű mennyiség lehet osztható!".to_string()),
     }
   }
   /// Central reset function
@@ -221,8 +222,88 @@ impl Default for Sku {
   }
 }
 
+mod sku_version_update {
+  use crate::*;
+  use chrono::prelude::*;
+  use serde::{Deserialize, Serialize};
+  #[derive(Serialize, Deserialize, Clone, Debug)]
+  pub enum QuantityOld {
+    Simple(u32),
+    Complex(u32, u32),
+  }
+  impl Default for QuantityOld {
+    fn default() -> Self {
+      Self::Simple(0)
+    }
+  }
+  #[derive(Serialize, Deserialize, Clone, Debug)]
+  pub struct SkuOld {
+    // SKU ID
+    pub sku: u32,
+    // Related product_id
+    pub product_id: u32,
+    // Related product name
+    pub parent_name: String,
+    // SKU sub name
+    pub sub_name: String,
+    // Product name + sub name + packaging
+    pub display_name: String,
+    // Quantity + unit as fancy display
+    pub display_packaging: String,
+    // Related product unit
+    pub unit: Unit,
+    // Sku quantity
+    pub quantity: QuantityOld,
+    // UPLs can divide?
+    // Only if Quantity::Simple(_)
+    pub can_divide: bool,
+    // Created by UID
+    pub created_by: u32,
+    // Created at
+    pub created_at: DateTime<Utc>,
+  }
+  impl Default for SkuOld {
+    fn default() -> Self {
+      Self {
+        sku: 0,
+        product_id: 0,
+        parent_name: String::default(),
+        sub_name: String::default(),
+        display_name: String::default(),
+        display_packaging: String::default(),
+        unit: Unit::Milliliter,
+        quantity: QuantityOld::default(),
+        can_divide: false,
+        created_by: 0,
+        created_at: Utc::now(),
+      }
+    }
+  }
+}
+
 impl TryFrom for Sku {
   type TryFrom = Sku;
+}
+
+impl From<SkuOld> for Sku {
+  fn from(so: SkuOld) -> Self {
+    Self {
+      sku: so.sku,
+      product_id: so.product_id,
+      parent_name: so.parent_name,
+      sub_name: so.sub_name,
+      display_name: so.display_name,
+      display_packaging: so.display_packaging,
+      unit: so.unit,
+      quantity: match so.quantity {
+        sku_version_update::QuantityOld::Simple(q) => Quantity::Simple(q),
+        sku_version_update::QuantityOld::Complex(m, q) => Quantity::Complex(m, q),
+      },
+      can_divide: so.can_divide,
+      created_by: so.created_by,
+      created_at: so.created_at,
+    }
+  }
 }
 
 impl VecPackMember for Sku {

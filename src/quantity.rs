@@ -73,16 +73,24 @@ impl Unit {
 pub enum Quantity {
   Simple(u32),
   Complex(u32, u32),
+  Float(f32),
 }
 
 impl PartialEq for Quantity {
   fn eq(&self, other: &Self) -> bool {
     match self {
+      Quantity::Float(q) => match other {
+        Quantity::Float(q2) => q == q2,
+        Quantity::Simple(_) => false,
+        Quantity::Complex(_, _) => false,
+      },
       Quantity::Simple(q) => match other {
+        Quantity::Float(_) => false,
         Quantity::Simple(q2) => q == q2,
         Quantity::Complex(_, _) => false,
       },
       Quantity::Complex(m, q) => match other {
+        Quantity::Float(_) => false,
         Quantity::Simple(_) => false,
         Quantity::Complex(m2, q2) => m == m2 && q == q2,
       },
@@ -93,6 +101,7 @@ impl PartialEq for Quantity {
 impl std::fmt::Display for Quantity {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match &self {
+      Quantity::Float(quantity) => write!(f, "{:.1}", quantity),
       Quantity::Simple(quantity) => write!(f, "{}", quantity),
       Quantity::Complex(multiplier, quantity) => write!(f, "{}x{}", multiplier, quantity),
     }
@@ -117,6 +126,16 @@ impl Quantity {
         )),
       }
     };
+
+    let f32parser = |input: &str| -> ServiceResult<f32> {
+      match input.parse::<f32>() {
+        Ok(res) => Ok(res),
+        Err(_) => Err(ServiceError::bad_request(
+          "A megadott szám hibás tizedes tört",
+        )),
+      }
+    };
+
     match s.contains("x") {
       true => {
         let parts: Vec<&str> = s.split("x").collect();
@@ -138,7 +157,12 @@ impl Quantity {
           ));
         }
       }
-      false => return Ok(Quantity::Simple(u32parser(s)?)),
+      false => match s.contains(".") {
+        // If its a f32
+        true => return Ok(Quantity::Float(f32parser(s)?)),
+        // If its an u32
+        false => return Ok(Quantity::Simple(u32parser(s)?)),
+      },
     }
   }
 }
@@ -164,6 +188,7 @@ pub fn fancy_display(quantity: &Quantity, unit: &Unit) -> String {
   let can_transform = |u: u32| (u >= 1000) && (u % 1000 == 0);
   // Transform quantity
   let transformed = |q: &Quantity| match q {
+    Quantity::Float(_q) => QuantityDisplay::Original(quantity),
     Quantity::Simple(_q) => match can_transform(*_q) {
       true => QuantityDisplay::Transformed(Quantity::Simple(_q / 1000)),
       false => QuantityDisplay::Original(quantity),
@@ -204,6 +229,8 @@ mod tests {
     assert_eq!(Quantity::try_from_str("1x3x5").is_err(), true);
     assert_eq!(Quantity::try_from_str("1x").is_err(), true);
     assert_eq!(Quantity::try_from_str("1x3e").is_err(), true);
+    assert_eq!(Quantity::try_from_str("2.5").is_ok(), true);
+    assert_eq!(Quantity::try_from_str("2.5").unwrap(), Quantity::Float(2.5));
   }
 
   #[test]
@@ -227,6 +254,12 @@ mod tests {
 
   #[test]
   fn test_fancy_display() {
+    // Test Float
+    assert_eq!(fancy_display(&Quantity::Float(1.5), &Unit::Piece), "1.5 db");
+    assert_eq!(
+      fancy_display(&Quantity::Float(1002.5), &Unit::Piece),
+      "1002.5 db"
+    );
     // Test piece transform
     assert_eq!(fancy_display(&Quantity::Simple(1), &Unit::Piece), "1 db");
     assert_eq!(
@@ -244,11 +277,11 @@ mod tests {
     );
     assert_eq!(
       fancy_display(&Quantity::Simple(1000), &Unit::Piece),
-      "1 000 db"
+      "1000 db"
     );
     assert_eq!(
       fancy_display(&Quantity::Simple(11000), &Unit::Piece),
-      "11 000 db"
+      "11000 db"
     );
     // Test gram transform
     assert_eq!(fancy_display(&Quantity::Simple(500), &Unit::Gram), "500 g");
@@ -258,7 +291,7 @@ mod tests {
     );
     assert_eq!(
       fancy_display(&Quantity::Simple(1100), &Unit::Gram),
-      "1 100 g"
+      "1100 g"
     );
     assert_eq!(
       fancy_display(&Quantity::Complex(3, 1100), &Unit::Gram),
@@ -279,7 +312,7 @@ mod tests {
     );
     assert_eq!(
       fancy_display(&Quantity::Simple(16500), &Unit::Gram),
-      "16 500 g"
+      "16500 g"
     );
     // Test mm transform
     assert_eq!(
@@ -304,7 +337,7 @@ mod tests {
     );
     assert_eq!(
       fancy_display(&Quantity::Simple(1500), &Unit::Millimeter),
-      "1 500 mm"
+      "1500 mm"
     );
     assert_eq!(
       fancy_display(&Quantity::Complex(3, 1500), &Unit::Millimeter),
@@ -324,7 +357,7 @@ mod tests {
     );
     assert_eq!(
       fancy_display(&Quantity::Simple(15001), &Unit::Millimeter),
-      "15 001 mm"
+      "15001 mm"
     );
     // Test ml transform
     assert_eq!(
@@ -353,7 +386,7 @@ mod tests {
     );
     assert_eq!(
       fancy_display(&Quantity::Simple(1400), &Unit::Milliliter),
-      "1 400 ml"
+      "1400 ml"
     );
     assert_eq!(
       fancy_display(&Quantity::Complex(9, 1400), &Unit::Milliliter),
