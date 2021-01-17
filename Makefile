@@ -1,5 +1,7 @@
- 
-.PHONY: release, test, dev
+include ../ENV.list
+export $(shell sed 's/=.*//' ../ENV.list)
+
+.PHONY: release, test, run
 
 release:
 	cargo update
@@ -11,9 +13,8 @@ build:
 	cargo build
 	cargo test
 
-dev:
-	# . ./ENV.sh; backper
-	cargo run;
+run:
+	cargo run
 
 test:
 	cargo test
