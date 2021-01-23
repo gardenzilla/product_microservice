@@ -78,6 +78,8 @@ impl From<crate::product::Product> for ProductObj {
       description: p.description,
       unit: p.unit.to_string(),
       skus: p.skus.clone(),
+      discontinued: p.discontinued,
+      perishable: p.perishable,
       created_by: p.created_by,
       created_at: p.created_at.to_rfc3339(),
     }
@@ -86,6 +88,7 @@ impl From<crate::product::Product> for ProductObj {
 
 impl From<crate::product::Sku> for SkuObj {
   fn from(s: crate::product::Sku) -> Self {
+    let divisible_amount = s.get_divisible_amount();
     Self {
       sku: s.sku,
       product_id: s.product_id,
@@ -95,6 +98,9 @@ impl From<crate::product::Sku> for SkuObj {
       quantity: s.quantity.to_string(),
       unit: s.unit.to_string(),
       can_divide: s.can_divide,
+      divisible_amount: divisible_amount,
+      discontinued: s.discontinued,
+      perishable: s.perishable,
       created_by: s.created_by,
       created_at: s.created_at.to_rfc3339(),
     }

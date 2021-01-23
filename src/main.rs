@@ -263,6 +263,106 @@ impl ProductService {
     // Return result SKU ids as vector
     Ok(res)
   }
+
+  async fn update_product_discontinued(
+    &self,
+    r: UpdateProductDiscontinuedRequest,
+  ) -> ServiceResult<ProductObj> {
+    // Try set product
+    let res: ProductObj = self
+      .products
+      .lock()
+      .await
+      .find_id_mut(&r.product_id)?
+      .as_mut()
+      .unpack()
+      .set_discontinued(r.discontinued)
+      .clone()
+      .into();
+
+    // Set discontinued to all related SKUs
+    self
+      .skus
+      .lock()
+      .await
+      .as_vec_mut()
+      .iter_mut()
+      .filter(|i| i.unpack().product_id == r.product_id)
+      .for_each(|i| {
+        i.as_mut().unpack().set_discontinued(r.discontinued);
+      });
+
+    Ok(res)
+  }
+
+  async fn update_product_perishable(
+    &self,
+    r: UpdateProductPerishableRequest,
+  ) -> ServiceResult<ProductObj> {
+    // Try to update product
+    let res: ProductObj = self
+      .products
+      .lock()
+      .await
+      .find_id_mut(&r.product_id)?
+      .as_mut()
+      .unpack()
+      .set_perishable(r.perishable)
+      .clone()
+      .into();
+
+    // Update related SKUs
+    self
+      .skus
+      .lock()
+      .await
+      .as_vec_mut()
+      .iter_mut()
+      .filter(|i| i.unpack().product_id == r.product_id)
+      .for_each(|i| {
+        i.as_mut().unpack().set_perishable(r.perishable);
+      });
+
+    Ok(res)
+  }
+
+  async fn update_sku_discontinued(
+    &self,
+    r: UpdateSkuDiscontinuedRequest,
+  ) -> ServiceResult<SkuObj> {
+    // find product id
+    let product_id = self.skus.lock().await.find_id(&r.sku)?.unpack().product_id;
+
+    // Get product obj
+    let product = self
+      .products
+      .lock()
+      .await
+      .find_id(&product_id)?
+      .unpack()
+      .clone();
+
+    // Check if we can update
+    if product.discontinued {
+      return Err(ServiceError::bad_request(
+        "A termék kifutó termék. Nem lehet a SKU kivétel",
+      ));
+    }
+
+    // Set sku
+    let res: SkuObj = self
+      .skus
+      .lock()
+      .await
+      .find_id_mut(&r.sku)?
+      .as_mut()
+      .unpack()
+      .set_discontinued(r.discontinued)
+      .clone()
+      .into();
+
+    Ok(res)
+  }
 }
 
 #[tonic::async_trait]
@@ -380,16 +480,41 @@ impl gzlib::proto::product::product_server::Product for ProductService {
     let res = self.find_sku(request.into_inner()).await?;
     Ok(Response::new(SkuIds { sku_ids: res }))
   }
+
+  async fn update_product_discontinued(
+    &self,
+    request: Request<UpdateProductDiscontinuedRequest>,
+  ) -> Result<Response<ProductObj>, Status> {
+    let res = self
+      .update_product_discontinued(request.into_inner())
+      .await?;
+    Ok(Response::new(res))
+  }
+
+  async fn update_product_perishable(
+    &self,
+    request: Request<UpdateProductPerishableRequest>,
+  ) -> Result<Response<ProductObj>, Status> {
+    let res = self.update_product_perishable(request.into_inner()).await?;
+    Ok(Response::new(res))
+  }
+
+  async fn update_sku_discontinued(
+    &self,
+    request: Request<UpdateSkuDiscontinuedRequest>,
+  ) -> Result<Response<SkuObj>, Status> {
+    let res = self.update_sku_discontinued(request.into_inner()).await?;
+    Ok(Response::new(res))
+  }
 }
 
 #[tokio::main]
 async fn main() -> prelude::ServiceResult<()> {
-  let product_db: VecPack<product::Product> =
-    VecPack::try_load_or_init(PathBuf::from("data/products"))
-      .expect("Error while loading product storage");
+  let product_db: VecPack<product::Product> = VecPack::load_or_init(PathBuf::from("data/products"))
+    .expect("Error while loading product storage");
 
   let sku_db: VecPack<product::Sku> =
-    VecPack::try_load_or_init(PathBuf::from("data/skus")).expect("Error while loading sku storage");
+    VecPack::load_or_init(PathBuf::from("data/skus")).expect("Error while loading sku storage");
 
   let product_service = ProductService::init(product_db, sku_db);
 

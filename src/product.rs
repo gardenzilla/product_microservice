@@ -19,7 +19,6 @@ use crate::quantity::*;
 use chrono::prelude::*;
 use packman::*;
 use serde::{Deserialize, Serialize};
-use sku_version_update::SkuOld;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Product {
@@ -31,6 +30,11 @@ pub struct Product {
   pub description: String,
   /// Product unit
   pub unit: Unit, // e.g.: ml
+  // We cannot create new Procurement
+  pub discontinued: bool,
+  // We must require best_before date during
+  // procurement
+  pub perishable: bool,
   /// Related SKUs
   pub skus: Vec<u32>,
   /// Created by UID
@@ -54,6 +58,8 @@ impl Product {
       description,
       unit,
       skus: Vec::new(),
+      discontinued: false,
+      perishable: false,
       created_by,
       created_at: Utc::now(),
     }
@@ -70,6 +76,16 @@ impl Product {
     self.skus.push(sku);
     self
   }
+  // Set discontinued
+  pub fn set_discontinued(&mut self, discontinued: bool) -> &Self {
+    self.discontinued = discontinued;
+    self
+  }
+  // Set has perishable
+  pub fn set_perishable(&mut self, perishable: bool) -> &Self {
+    self.perishable = perishable;
+    self
+  }
 }
 
 impl Default for Product {
@@ -80,6 +96,8 @@ impl Default for Product {
       description: String::default(),
       unit: Unit::Milliliter,
       skus: Vec::new(),
+      discontinued: false,
+      perishable: false,
       created_by: 0,
       created_at: Utc::now(),
     }
@@ -118,6 +136,11 @@ pub struct Sku {
   // UPLs can divide?
   // Only if Quantity::Simple(_)
   pub can_divide: bool,
+  // We cannot create new Procurement
+  pub discontinued: bool,
+  // We must require best_before date during
+  // procurement
+  pub perishable: bool,
   // Created by UID
   pub created_by: u32,
   // Created at
@@ -143,6 +166,8 @@ impl Sku {
       quantity,
       unit: parent.unit.clone(),
       can_divide: false,
+      discontinued: false,
+      perishable: false,
       created_by,
       created_at: Utc::now(),
     };
@@ -182,6 +207,16 @@ impl Sku {
       _ => Err("Csak egyszerű mennyiség lehet osztható!".to_string()),
     }
   }
+  // Set discontinued
+  pub fn set_discontinued(&mut self, discontinued: bool) -> &Self {
+    self.discontinued = discontinued;
+    self
+  }
+  // Set has perishable
+  pub fn set_perishable(&mut self, perishable: bool) -> &Self {
+    self.perishable = perishable;
+    self
+  }
   /// Central reset function
   /// This calls all the needed reset sub methods
   /// Call order important!
@@ -202,6 +237,19 @@ impl Sku {
   pub fn reset_display_packaging(&mut self) {
     self.display_packaging = fancy_display(&self.quantity, &self.unit);
   }
+
+  pub fn get_divisible_amount(&self) -> u32 {
+    // If SKU can divide
+    if self.can_divide {
+      match self.quantity {
+        // Only Simple quantity can be divisible
+        Quantity::Simple(q) => return q,
+        _ => return 0,
+      }
+    }
+    // Otherwise return 0
+    0
+  }
 }
 
 impl Default for Sku {
@@ -216,92 +264,10 @@ impl Default for Sku {
       quantity: Quantity::Simple(0),
       unit: Unit::Milliliter,
       can_divide: false,
+      discontinued: false,
+      perishable: false,
       created_by: 0,
       created_at: Utc::now(),
-    }
-  }
-}
-
-mod sku_version_update {
-  use crate::*;
-  use chrono::prelude::*;
-  use serde::{Deserialize, Serialize};
-  #[derive(Serialize, Deserialize, Clone, Debug)]
-  pub enum QuantityOld {
-    Simple(u32),
-    Complex(u32, u32),
-  }
-  impl Default for QuantityOld {
-    fn default() -> Self {
-      Self::Simple(0)
-    }
-  }
-  #[derive(Serialize, Deserialize, Clone, Debug)]
-  pub struct SkuOld {
-    // SKU ID
-    pub sku: u32,
-    // Related product_id
-    pub product_id: u32,
-    // Related product name
-    pub parent_name: String,
-    // SKU sub name
-    pub sub_name: String,
-    // Product name + sub name + packaging
-    pub display_name: String,
-    // Quantity + unit as fancy display
-    pub display_packaging: String,
-    // Related product unit
-    pub unit: Unit,
-    // Sku quantity
-    pub quantity: QuantityOld,
-    // UPLs can divide?
-    // Only if Quantity::Simple(_)
-    pub can_divide: bool,
-    // Created by UID
-    pub created_by: u32,
-    // Created at
-    pub created_at: DateTime<Utc>,
-  }
-  impl Default for SkuOld {
-    fn default() -> Self {
-      Self {
-        sku: 0,
-        product_id: 0,
-        parent_name: String::default(),
-        sub_name: String::default(),
-        display_name: String::default(),
-        display_packaging: String::default(),
-        unit: Unit::Milliliter,
-        quantity: QuantityOld::default(),
-        can_divide: false,
-        created_by: 0,
-        created_at: Utc::now(),
-      }
-    }
-  }
-}
-
-impl TryFrom for Sku {
-  type TryFrom = Sku;
-}
-
-impl From<SkuOld> for Sku {
-  fn from(so: SkuOld) -> Self {
-    Self {
-      sku: so.sku,
-      product_id: so.product_id,
-      parent_name: so.parent_name,
-      sub_name: so.sub_name,
-      display_name: so.display_name,
-      display_packaging: so.display_packaging,
-      unit: so.unit,
-      quantity: match so.quantity {
-        sku_version_update::QuantityOld::Simple(q) => Quantity::Simple(q),
-        sku_version_update::QuantityOld::Complex(m, q) => Quantity::Complex(m, q),
-      },
-      can_divide: so.can_divide,
-      created_by: so.created_by,
-      created_at: so.created_at,
     }
   }
 }
@@ -311,4 +277,8 @@ impl VecPackMember for Sku {
   fn get_id(&self) -> &Self::Out {
     &self.sku
   }
+}
+
+impl TryFrom for Sku {
+  type TryFrom = Sku;
 }
