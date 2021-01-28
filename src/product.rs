@@ -239,16 +239,11 @@ impl Sku {
   }
 
   pub fn get_divisible_amount(&self) -> u32 {
-    // If SKU can divide
-    if self.can_divide {
-      match self.quantity {
-        // Only Simple quantity can be divisible
-        Quantity::Simple(q) => return q,
-        _ => return 0,
-      }
+    match self.quantity {
+      // Only Simple quantity can be divisible
+      Quantity::Simple(q) => return q,
+      _ => return 0,
     }
-    // Otherwise return 0
-    0
   }
 }
 
