@@ -242,7 +242,7 @@ impl Sku {
     match self.quantity {
       // Only Simple quantity can be divisible
       Quantity::Simple(q) => return q,
-      _ => return 0,
+      _ => return 1,
     }
   }
 }
