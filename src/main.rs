@@ -1,11 +1,15 @@
-use gzlib::proto::product::product_server::*;
-use gzlib::proto::product::*;
+use gzlib::proto::{product::product_server::*, upl::upl_client::UplClient};
+use gzlib::proto::{product::*, upl::SetProductUnitRequest};
 use packman::*;
 use prelude::*;
 use quantity::{Quantity, Unit};
 use std::{env, path::PathBuf};
 use tokio::sync::{oneshot, Mutex};
-use tonic::{transport::Server, Request, Response, Status};
+use tokio_stream::wrappers::ReceiverStream;
+use tonic::{
+  transport::{Channel, Server},
+  Request, Response, Status,
+};
 
 mod convert;
 mod prelude;
@@ -15,14 +19,20 @@ mod quantity;
 struct ProductService {
   products: Mutex<VecPack<product::Product>>,
   skus: Mutex<VecPack<product::Sku>>,
+  client_upl: Mutex<UplClient<Channel>>,
 }
 
 impl ProductService {
   /// Init new product service with the required DBs
-  fn init(product_db: VecPack<product::Product>, sku_db: VecPack<product::Sku>) -> Self {
+  fn init(
+    product_db: VecPack<product::Product>,
+    sku_db: VecPack<product::Sku>,
+    client_upl: UplClient<Channel>,
+  ) -> Self {
     Self {
       products: Mutex::new(product_db),
       skus: Mutex::new(sku_db),
+      client_upl: Mutex::new(client_upl),
     }
   }
   /// Get next product id to use
@@ -129,6 +139,19 @@ impl ProductService {
       .for_each(|s| {
         s.as_mut().unpack().update_parent(&res);
       });
+
+    // Update UPLs product unit
+    self
+      .client_upl
+      .lock()
+      .await
+      .set_product_unit(SetProductUnitRequest {
+        product_id: res.product_id,
+        unit: res.unit.to_string(),
+      })
+      .await
+      .map_err(|e| ServiceError::bad_request(&e.to_string()))?;
+
     // Return result as ProductObj
     Ok(res.into())
   }
@@ -388,7 +411,7 @@ impl gzlib::proto::product::product_server::Product for ProductService {
     Ok(Response::new(res))
   }
 
-  type GetProductBulkStream = tokio::sync::mpsc::Receiver<Result<ProductObj, Status>>;
+  type GetProductBulkStream = ReceiverStream<Result<ProductObj, Status>>;
 
   async fn get_product_bulk(
     &self,
@@ -406,7 +429,7 @@ impl gzlib::proto::product::product_server::Product for ProductService {
     });
 
     // Send back the receiver
-    Ok(Response::new(rx))
+    Ok(Response::new(ReceiverStream::new(rx)))
   }
 
   async fn update_product(
@@ -440,7 +463,7 @@ impl gzlib::proto::product::product_server::Product for ProductService {
     Ok(Response::new(res))
   }
 
-  type GetSkuBulkStream = tokio::sync::mpsc::Receiver<Result<SkuObj, Status>>;
+  type GetSkuBulkStream = ReceiverStream<Result<SkuObj, Status>>;
 
   async fn get_sku_bulk(
     &self,
@@ -460,7 +483,7 @@ impl gzlib::proto::product::product_server::Product for ProductService {
     });
 
     // Send back the receiver
-    Ok(Response::new(rx))
+    Ok(Response::new(ReceiverStream::new(rx)))
   }
 
   async fn update_sku(&self, request: Request<SkuObj>) -> Result<Response<SkuObj>, Status> {
@@ -516,7 +539,11 @@ async fn main() -> prelude::ServiceResult<()> {
   let sku_db: VecPack<product::Sku> =
     VecPack::load_or_init(PathBuf::from("data/skus")).expect("Error while loading sku storage");
 
-  let product_service = ProductService::init(product_db, sku_db);
+  let client_upl = UplClient::connect(service_address("SERVICE_ADDR_UPL"))
+    .await
+    .expect("Could not connect to image processer service");
+
+  let product_service = ProductService::init(product_db, sku_db, client_upl);
 
   let addr = env::var("SERVICE_ADDR_PRODUCT")
     .unwrap_or("[::1]:50054".into())
